@@ -17,11 +17,11 @@ function getColors(): string[] {
 
 function makeOpenDecoType(color: string) {
   return vscode.window.createTextEditorDecorationType({
+    color: "transparent",
     after: {
-      contentText: " {",
+      contentText: "{ ",
       color,
       fontWeight: "bold",
-      margin: "0 0 0 0.2em",
     },
   })
 }
@@ -127,7 +127,7 @@ function updateDecorations(editor: vscode.TextEditor) {
 
       openBuckets[colorIdx].push({
         range: new vscode.Range(
-          new vscode.Position(i, colonCol - 1),
+          new vscode.Position(i, colonCol),
           new vscode.Position(i, colonCol + 1),
         ),
       })
