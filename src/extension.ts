@@ -233,6 +233,7 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   )
 }
+
 function providePythonFormattingEdits(
   document: vscode.TextDocument,
 ): vscode.TextEdit[] {
@@ -268,11 +269,10 @@ function providePythonFormattingEdits(
           nextLineTrimmed !== "else:" &&
           !nextLineTrimmed.startsWith("elif ")
         ) {
-          const indentSpaces = " ".repeat(frame.indent)
           edits.push(
             vscode.TextEdit.insert(
               new vscode.Position(targetLineNum, 0),
-              `${indentSpaces}\n`,
+              `\n`,
             ),
           )
         }
@@ -306,14 +306,12 @@ function providePythonFormattingEdits(
         )
       }
     } else {
-      // Ensure there is a trailing empty spacing line at EOF if the block ends there
       const lastLine = document.lineAt(lineCount - 1)
       if (lastLine.text.trim().length > 0) {
-        const indentSpaces = " ".repeat(frame.indent)
         edits.push(
           vscode.TextEdit.insert(
             new vscode.Position(lineCount, 0),
-            `\n${indentSpaces}`,
+            `\n`,
           ),
         )
       }
