@@ -29,7 +29,7 @@ function makeOpenDecoType(color: string) {
 function makeCloseDecoType(color: string) {
   return vscode.window.createTextEditorDecorationType({
     after: {
-      contentText: "}",
+      contentText: "} ",
       color,
       fontWeight: "bold",
       textDecoration:
@@ -129,7 +129,7 @@ function updateDecorations(editor: vscode.TextEditor) {
         // Place the decoration directly at the indentation column (e.g. after the spaces).
         // It will render immediately before the text, e.g. "    }else:"
         pos = new vscode.Position(l, frame.indent)
-        marginStr = `0.1em 0 0 1ch`
+        marginStr = `0.1em 0 0 0ch`
       } else {
         // Otherwise, place it at the start of the line and push it with margins
         pos = closeLine.range.start
@@ -206,6 +206,19 @@ export function activate(context: vscode.ExtensionContext) {
   scheduleUpdate(vscode.window.activeTextEditor)
 
   context.subscriptions.push(
+    // --- REGISTER THE FORMATTER ---
+    vscode.languages.registerDocumentFormattingEditProvider(
+      "python",
+      {
+        provideDocumentFormattingEdits(
+          document: vscode.TextDocument,
+        ): vscode.TextEdit[] {
+          return providePythonFormattingEdits(document)
+        },
+      },
+    ),
+    // ------------------------------
+
     vscode.window.onDidChangeActiveTextEditor(scheduleUpdate),
     vscode.workspace.onDidChangeTextDocument((e) => {
       const editor = vscode.window.activeTextEditor
@@ -220,7 +233,98 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   )
 }
+function providePythonFormattingEdits(
+  document: vscode.TextDocument,
+): vscode.TextEdit[] {
+  const edits: vscode.TextEdit[] = []
+  const lineCount = document.lineCount
+  const stack: { indent: number; lastBodyLine: number }[] = []
+
+  for (let i = 0; i < lineCount; i++) {
+    const line = document.lineAt(i)
+    const text = line.text
+    const trimmed = text.trim()
+
+    if (trimmed.length === 0 || trimmed.startsWith("#")) continue
+
+    const indent = text.length - text.trimStart().length
+
+    // Detect when blocks close (dedenting)
+    while (
+      stack.length > 0 &&
+      indent <= stack[stack.length - 1].indent
+    ) {
+      const frame = stack.pop()!
+      const targetLineNum = frame.lastBodyLine + 1
+
+      if (targetLineNum < lineCount) {
+        const nextLine = document.lineAt(targetLineNum)
+        const nextLineTrimmed = nextLine.text.trim()
+
+        // If the next line contains code (is not blank) and isn't an 'else'/'elif' inline continuation,
+        // we insert a beautifully-aligned empty line to host the virtual closing brace
+        if (
+          nextLineTrimmed.length > 0 &&
+          nextLineTrimmed !== "else:" &&
+          !nextLineTrimmed.startsWith("elif ")
+        ) {
+          const indentSpaces = " ".repeat(frame.indent)
+          edits.push(
+            vscode.TextEdit.insert(
+              new vscode.Position(targetLineNum, 0),
+              `${indentSpaces}\n`,
+            ),
+          )
+        }
+      }
+    }
+
+    for (const frame of stack) {
+      frame.lastBodyLine = i
+    }
+
+    const codePart = stripTrailingComment(trimmed)
+    if (codePart.endsWith(":")) {
+      stack.push({ indent, lastBodyLine: i })
+    }
+  }
+
+  // Handle remaining blocks open at the end of the file
+  while (stack.length > 0) {
+    const frame = stack.pop()!
+    const targetLineNum = frame.lastBodyLine + 1
+
+    if (targetLineNum < lineCount) {
+      const nextLine = document.lineAt(targetLineNum)
+      if (nextLine.text.trim().length > 0) {
+        const indentSpaces = " ".repeat(frame.indent)
+        edits.push(
+          vscode.TextEdit.insert(
+            new vscode.Position(targetLineNum, 0),
+            `${indentSpaces}\n`,
+          ),
+        )
+      }
+    } else {
+      // Ensure there is a trailing empty spacing line at EOF if the block ends there
+      const lastLine = document.lineAt(lineCount - 1)
+      if (lastLine.text.trim().length > 0) {
+        const indentSpaces = " ".repeat(frame.indent)
+        edits.push(
+          vscode.TextEdit.insert(
+            new vscode.Position(lineCount, 0),
+            `\n${indentSpaces}`,
+          ),
+        )
+      }
+    }
+  }
+
+  return edits
+}
 
 export function deactivate() {
   disposeDecorationTypes()
 }
+
+// TODO add gdscript support
