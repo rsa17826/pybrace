@@ -29,11 +29,9 @@ function makeOpenDecoType(color: string) {
 function makeCloseDecoType(color: string) {
   return vscode.window.createTextEditorDecorationType({
     after: {
-      contentText: "}",
+      contentText: "\n}\n\n\n",
       color,
       fontWeight: "bold",
-      // forces the } onto its own line below the last body line;
-      // left-margin (indentation) is set per-instance via renderOptions
       textDecoration: "none;",
       // textDecoration: "none; display: block;",
     },
