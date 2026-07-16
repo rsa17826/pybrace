@@ -34,7 +34,8 @@ function makeCloseDecoType(color: string) {
       fontWeight: "bold",
       // forces the } onto its own line below the last body line;
       // left-margin (indentation) is set per-instance via renderOptions
-      textDecoration: "none; display: block;",
+      textDecoration: "none;",
+      // textDecoration: "none; display: block;",
     },
   })
 }
@@ -45,11 +46,21 @@ let colonHiderType: vscode.TextEditorDecorationType | undefined
 let openTypes: vscode.TextEditorDecorationType[] = []
 let closeTypes: vscode.TextEditorDecorationType[] = []
 
+const MAX_DEPTH = 64 // Handle up to 64 levels of nesting safely
+
 function createDecorationTypes() {
   disposeDecorationTypes()
   const colors = getColors()
+  const n = colors.length
+
   openTypes = colors.map((c) => makeOpenDecoType(c))
-  closeTypes = colors.map((c) => makeCloseDecoType(c))
+
+  // FIX 1: Generate closing decoration types for every depth level.
+  // This allows us to control the exact stack order of the braces.
+  closeTypes = Array.from({ length: MAX_DEPTH }, (_, i) =>
+    makeCloseDecoType(colors[i % n]),
+  )
+
   colonHiderType = vscode.window.createTextEditorDecorationType({
     textDecoration: "none; display: none;",
   })
@@ -169,9 +180,15 @@ function updateDecorations(editor: vscode.TextEditor) {
   openTypes.forEach((type, idx) =>
     editor.setDecorations(type, openBuckets[idx]),
   )
-  closeTypes.forEach((type, idx) =>
-    editor.setDecorations(type, closeBuckets[idx]),
-  )
+
+  // FIX: Apply closing decorations in reverse order.
+  // Because VS Code renders block decorations sequentially, applying them
+  // from right-to-left/deepest-to-shallowest forces the inner brace
+  // (which has a higher depth/colorIdx) to render on top of the outer brace.
+  for (let idx = closeTypes.length - 1; idx >= 0; idx--) {
+    editor.setDecorations(closeTypes[idx], closeBuckets[idx])
+  }
+
   editor.setDecorations(colonHiderType, hideColonRanges)
 }
 
