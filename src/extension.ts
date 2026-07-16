@@ -1,117 +1,186 @@
 import * as vscode from "vscode"
 
-const BRACKETS = new Set(["(", ")", "[", "]", "{", "}"])
-const OPEN = new Set(["(", "[", "{"])
-
-let decorationTypes: vscode.TextEditorDecorationType[] = []
+interface StackFrame {
+  indent: number
+  line: number
+  lastBodyLine: number
+}
 
 function getColors(): string[] {
   return vscode.workspace
     .getConfiguration("rainbowBraces")
     .get<
       string[]
-    >("colors", ["#e06c75", "#61afef", "#98c379", "#c678dd"])
+    >("colors", ["#e06c75", "#61afef", "#98c379", "#c678dd", "#d19a66", "#56b6c2"])
 }
+
+function makeOpenDecoType(color: string) {
+  return vscode.window.createTextEditorDecorationType({
+    after: {
+      contentText: "{",
+      color,
+      fontWeight: "bold",
+      margin: "0 0 0 0.2em",
+    },
+  })
+}
+
+function makeCloseDecoType(color: string) {
+  return vscode.window.createTextEditorDecorationType({
+    after: {
+      contentText: "}",
+      color,
+      fontWeight: "bold",
+      // forces the } onto its own line below the last body line
+      textDecoration: "none; display: block; margin-top: 0.1em;",
+    },
+  })
+}
+
+// hides the real ':' character so '{' can visually stand in for it
+let colonHiderType: vscode.TextEditorDecorationType | undefined
+
+let openTypes: vscode.TextEditorDecorationType[] = []
+let closeTypes: vscode.TextEditorDecorationType[] = []
 
 function createDecorationTypes() {
   disposeDecorationTypes()
-  decorationTypes = getColors().map((color) =>
-    vscode.window.createTextEditorDecorationType({ color }),
-  )
+  const colors = getColors()
+  openTypes = colors.map((c) => makeOpenDecoType(c))
+  closeTypes = colors.map((c) => makeCloseDecoType(c))
+  colonHiderType = vscode.window.createTextEditorDecorationType({
+    textDecoration: "none; display: none;",
+  })
 }
 
 function disposeDecorationTypes() {
-  decorationTypes.forEach((d) => d.dispose())
-  decorationTypes = []
+  ;[...openTypes, ...closeTypes].forEach((d) => d.dispose())
+  openTypes = []
+  closeTypes = []
+  if (colonHiderType) {
+    colonHiderType.dispose()
+    colonHiderType = undefined
+  }
+}
+
+function stripTrailingComment(s: string): string {
+  const idx = s.indexOf("#")
+  return idx === -1 ? s : s.slice(0, idx).trim()
 }
 
 function updateDecorations(editor: vscode.TextEditor) {
   if (editor.document.languageId !== "python") return
+  if (!colonHiderType) return
 
-  const text = editor.document.getText()
-  const buckets: vscode.Range[][] = decorationTypes.map(() => [])
+  const doc = editor.document
+  const lineCount = doc.lineCount
+  const n = openTypes.length
 
-  let depth = 0
-  let inString: false | '"' | "'" | '"""' | "'''" = false
-  let inComment = false
+  const openBuckets: vscode.DecorationOptions[][] = openTypes.map(
+    () => [],
+  )
+  const closeBuckets: vscode.DecorationOptions[][] = closeTypes.map(
+    () => [],
+  )
+  const hideColonRanges: vscode.Range[] = []
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
+  const stack: StackFrame[] = []
 
-    if (ch === "\n") {
-      inComment = false
-      continue
-    }
-    if (inComment) continue
+  for (let i = 0; i < lineCount; i++) {
+    const line = doc.lineAt(i)
+    const text = line.text
+    const trimmed = text.trim()
 
-    // crude string/comment skipping — see note below
-    if (!inString && ch === "#") {
-      inComment = true
-      continue
-    }
+    if (trimmed.length === 0 || trimmed.startsWith("#")) continue
 
-    if (!inString && (ch === '"' || ch === "'")) {
-      const triple = text.substr(i, 3)
-      if (triple === '"""' || triple === "'''") {
-        inString = triple as any
-        i += 2
-        continue
-      }
-      inString = ch as any
-      continue
-    } else if (inString) {
-      if (inString.length === 1 && ch === inString) {
-        inString = false
-        continue
-      }
-      if (inString.length === 3 && text.substr(i, 3) === inString) {
-        inString = false
-        i += 2
-        continue
-      }
-      continue
+    const indent = text.length - text.trimStart().length
+
+    // pop any frames we've dedented out of (including sibling headers at
+    // the same indent level), emitting a virtual '}' for each
+    while (
+      stack.length > 0 &&
+      indent <= stack[stack.length - 1].indent
+    ) {
+      const frame = stack.pop()!
+      const depth = stack.length
+      const colorIdx = depth % n
+      const closeLine = doc.lineAt(frame.lastBodyLine)
+      const pos = closeLine.range.end
+      closeBuckets[colorIdx].push({
+        range: new vscode.Range(pos, pos),
+      })
     }
 
-    if (!BRACKETS.has(ch)) continue
+    // this line belongs to whatever frame is currently on top of the stack
+    if (stack.length > 0) {
+      stack[stack.length - 1].lastBodyLine = i
+    }
 
-    const pos = editor.document.positionAt(i)
-    const range = new vscode.Range(pos, pos.translate(0, 1))
+    const codePart = stripTrailingComment(trimmed)
+    if (codePart.endsWith(":")) {
+      const depth = stack.length
+      const colorIdx = depth % n
+      const colonCol = text.lastIndexOf(":")
 
-    if (OPEN.has(ch)) {
-      const colorIdx = depth % decorationTypes.length
-      buckets[colorIdx].push(range)
-      depth++
-    } else {
-      depth = Math.max(0, depth - 1)
-      const colorIdx = depth % decorationTypes.length
-      buckets[colorIdx].push(range)
+      // hide the real colon
+      hideColonRanges.push(
+        new vscode.Range(
+          new vscode.Position(i, colonCol),
+          new vscode.Position(i, colonCol + 1),
+        ),
+      )
+
+      // draw '{' in its place
+      const bracePos = new vscode.Position(i, colonCol)
+      openBuckets[colorIdx].push({
+        range: new vscode.Range(bracePos, bracePos),
+      })
+
+      stack.push({ indent, line: i, lastBodyLine: i })
     }
   }
 
-  decorationTypes.forEach((type, idx) =>
-    editor.setDecorations(type, buckets[idx]),
+  // close anything still open at EOF
+  while (stack.length > 0) {
+    const frame = stack.pop()!
+    const depth = stack.length
+    const colorIdx = depth % n
+    const closeLine = doc.lineAt(frame.lastBodyLine)
+    const pos = closeLine.range.end
+    closeBuckets[colorIdx].push({ range: new vscode.Range(pos, pos) })
+  }
+
+  openTypes.forEach((type, idx) =>
+    editor.setDecorations(type, openBuckets[idx]),
   )
+  closeTypes.forEach((type, idx) =>
+    editor.setDecorations(type, closeBuckets[idx]),
+  )
+  editor.setDecorations(colonHiderType, hideColonRanges)
+}
+
+let timeout: NodeJS.Timeout | undefined
+function scheduleUpdate(editor?: vscode.TextEditor) {
+  if (!editor) return
+  if (timeout) clearTimeout(timeout)
+  timeout = setTimeout(() => updateDecorations(editor), 150)
 }
 
 export function activate(context: vscode.ExtensionContext) {
   createDecorationTypes()
-
-  const trigger = (editor?: vscode.TextEditor) => {
-    if (editor) updateDecorations(editor)
-  }
-
-  trigger(vscode.window.activeTextEditor)
+  scheduleUpdate(vscode.window.activeTextEditor)
 
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveTextEditor(trigger),
+    vscode.window.onDidChangeActiveTextEditor(scheduleUpdate),
     vscode.workspace.onDidChangeTextDocument((e) => {
       const editor = vscode.window.activeTextEditor
-      if (editor && e.document === editor.document) trigger(editor)
+      if (editor && e.document === editor.document)
+        scheduleUpdate(editor)
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("rainbowBraces")) {
         createDecorationTypes()
-        trigger(vscode.window.activeTextEditor)
+        scheduleUpdate(vscode.window.activeTextEditor)
       }
     }),
   )
