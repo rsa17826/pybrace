@@ -18,7 +18,7 @@ function getColors(): string[] {
 function makeOpenDecoType(color: string) {
   return vscode.window.createTextEditorDecorationType({
     after: {
-      contentText: "{",
+      contentText: " {",
       color,
       fontWeight: "bold",
       margin: "0 0 0 0.2em",
@@ -129,10 +129,6 @@ function updateDecorations(editor: vscode.TextEditor) {
       })
     }
 
-    // this line is nested inside every currently open frame (not just the
-    // innermost one), so all of them need their lastBodyLine bumped —
-    // otherwise an outer block's '}' gets stuck at wherever it was last on
-    // top of the stack, instead of tracking the true last line of its body
     for (const frame of stack) {
       frame.lastBodyLine = i
     }
@@ -143,18 +139,11 @@ function updateDecorations(editor: vscode.TextEditor) {
       const colorIdx = depth % n
       const colonCol = text.lastIndexOf(":")
 
-      // hide the real colon
-      hideColonRanges.push(
-        new vscode.Range(
+      openBuckets[colorIdx].push({
+        range: new vscode.Range(
           new vscode.Position(i, colonCol),
           new vscode.Position(i, colonCol + 1),
         ),
-      )
-
-      // draw '{' in its place
-      const bracePos = new vscode.Position(i, colonCol)
-      openBuckets[colorIdx].push({
-        range: new vscode.Range(bracePos, bracePos),
       })
 
       stack.push({ indent, line: i, lastBodyLine: i, depth })
