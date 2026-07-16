@@ -40,9 +40,6 @@ function makeCloseDecoType(color: string) {
   })
 }
 
-// hides the real ':' character so '{' can visually stand in for it
-let colonHiderType: vscode.TextEditorDecorationType | undefined
-
 let openTypes: vscode.TextEditorDecorationType[] = []
 let closeTypes: vscode.TextEditorDecorationType[] = []
 
@@ -60,20 +57,12 @@ function createDecorationTypes() {
   closeTypes = Array.from({ length: MAX_DEPTH }, (_, i) =>
     makeCloseDecoType(colors[i % n]),
   )
-
-  colonHiderType = vscode.window.createTextEditorDecorationType({
-    textDecoration: "none; display: none;",
-  })
 }
 
 function disposeDecorationTypes() {
   ;[...openTypes, ...closeTypes].forEach((d) => d.dispose())
   openTypes = []
   closeTypes = []
-  if (colonHiderType) {
-    colonHiderType.dispose()
-    colonHiderType = undefined
-  }
 }
 
 function stripTrailingComment(s: string): string {
@@ -83,7 +72,6 @@ function stripTrailingComment(s: string): string {
 
 function updateDecorations(editor: vscode.TextEditor) {
   if (editor.document.languageId !== "python") return
-  if (!colonHiderType) return
 
   const doc = editor.document
   const lineCount = doc.lineCount
@@ -95,8 +83,6 @@ function updateDecorations(editor: vscode.TextEditor) {
   const closeBuckets: vscode.DecorationOptions[][] = closeTypes.map(
     () => [],
   )
-  const hideColonRanges: vscode.Range[] = []
-
   const stack: StackFrame[] = []
 
   for (let i = 0; i < lineCount; i++) {
@@ -141,7 +127,7 @@ function updateDecorations(editor: vscode.TextEditor) {
 
       openBuckets[colorIdx].push({
         range: new vscode.Range(
-          new vscode.Position(i, colonCol),
+          new vscode.Position(i, colonCol - 1),
           new vscode.Position(i, colonCol + 1),
         ),
       })
@@ -177,8 +163,6 @@ function updateDecorations(editor: vscode.TextEditor) {
   for (let idx = closeTypes.length - 1; idx >= 0; idx--) {
     editor.setDecorations(closeTypes[idx], closeBuckets[idx])
   }
-
-  editor.setDecorations(colonHiderType, hideColonRanges)
 }
 
 let timeout: NodeJS.Timeout | undefined
