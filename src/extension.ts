@@ -21,7 +21,7 @@ function makeOpenDecoType(color: string) {
     after: {
       contentText: "{ ",
       color,
-      fontWeight: "bold",
+      fontWeight: "bold;",
     },
   })
 }
@@ -29,10 +29,12 @@ function makeOpenDecoType(color: string) {
 function makeCloseDecoType(color: string) {
   return vscode.window.createTextEditorDecorationType({
     after: {
-      contentText: "<NL>}",
+      contentText: "}",
       color,
       fontWeight: "bold",
-      textDecoration: "none;",
+      textDecoration:
+        "none; white-space: pre-wrap; display: inline-block;",
+      // textDecoration: "none; white-space: pre-wrap; display: block;",
     },
   })
 }
@@ -99,8 +101,8 @@ function updateDecorations(editor: vscode.TextEditor) {
     ) {
       const frame = stack.pop()!
       const colorIdx = frame.depth % n
-      const closeLine = doc.lineAt(frame.lastBodyLine)
-      const pos = closeLine.range.end
+      const closeLine = doc.lineAt(frame.lastBodyLine + 1)
+      const pos = closeLine.range.start
       closeBuckets[colorIdx].push({
         range: new vscode.Range(pos, pos),
         renderOptions: {
