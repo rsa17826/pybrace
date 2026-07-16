@@ -95,14 +95,23 @@ function updateDecorations(editor: vscode.TextEditor) {
 
     // pop any frames we've dedented out of (including sibling headers at
     // the same indent level), emitting a virtual '}' for each
+    var lineUseCount = 0
+    var lastUsedLine = 0
     while (
       stack.length > 0 &&
       indent <= stack[stack.length - 1].indent
     ) {
       const frame = stack.pop()!
       const colorIdx = frame.depth % n
-      const closeLine = doc.lineAt(frame.lastBodyLine + 1)
-      const pos = closeLine.range.start
+      var l = frame.lastBodyLine + 1
+      if (l == lastUsedLine) {
+        l += ++lineUseCount
+      } else {
+        lineUseCount = 0
+      }
+      lastUsedLine = frame.lastBodyLine + 1
+      const closeLine = doc.lineAt(l)
+      var pos = closeLine.range.start
       closeBuckets[colorIdx].push({
         range: new vscode.Range(pos, pos),
         renderOptions: {
