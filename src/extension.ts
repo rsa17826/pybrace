@@ -111,13 +111,37 @@ function updateDecorations(editor: vscode.TextEditor) {
       }
       lastUsedLine = frame.lastBodyLine + 1
       const closeLine = doc.lineAt(l)
-      var pos = closeLine.range.start
+
+      // --- DYNAMIC SAME-LINE ALIGNMENT ---
+      const closeLineText = closeLine.text
+      const closeLineTrimmed = closeLineText.trim()
+      const closeLineIndent =
+        closeLineText.length - closeLineText.trimStart().length
+
+      let pos: vscode.Position
+      let marginStr: string
+
+      // If there is actual code on this line, and its indentation matches the target block
+      if (
+        closeLineTrimmed.length > 0 &&
+        closeLineIndent === frame.indent
+      ) {
+        // Place the decoration directly at the indentation column (e.g. after the spaces).
+        // It will render immediately before the text, e.g. "    }else:"
+        pos = new vscode.Position(l, frame.indent)
+        marginStr = `0.1em 0 0 1ch`
+      } else {
+        // Otherwise, place it at the start of the line and push it with margins
+        pos = closeLine.range.start
+        marginStr = `0.1em 0 0 ${frame.indent}ch`
+      }
+      // ------------------------------------
+
       closeBuckets[colorIdx].push({
         range: new vscode.Range(pos, pos),
         renderOptions: {
           after: {
-            // align the '}' under its matching 'if' by indenting with ch units
-            margin: `0.1em 0 0 ${frame.indent}ch`,
+            margin: marginStr,
           },
         },
       })
@@ -164,10 +188,7 @@ function updateDecorations(editor: vscode.TextEditor) {
     editor.setDecorations(type, openBuckets[idx]),
   )
 
-  // FIX: Apply closing decorations in reverse order.
-  // Because VS Code renders block decorations sequentially, applying them
-  // from right-to-left/deepest-to-shallowest forces the inner brace
-  // (which has a higher depth/colorIdx) to render on top of the outer brace.
+  // Apply closing decorations in reverse order.
   for (let idx = closeTypes.length - 1; idx >= 0; idx--) {
     editor.setDecorations(closeTypes[idx], closeBuckets[idx])
   }
