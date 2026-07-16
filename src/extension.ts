@@ -29,11 +29,10 @@ function makeOpenDecoType(color: string) {
 function makeCloseDecoType(color: string) {
   return vscode.window.createTextEditorDecorationType({
     after: {
-      contentText: "asd\r\n}",
+      contentText: "<NL>}",
       color,
       fontWeight: "bold",
-      // textDecoration: "none;",
-      textDecoration: "none; display: inline;",
+      textDecoration: "none;",
     },
   })
 }
