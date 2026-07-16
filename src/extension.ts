@@ -4,6 +4,7 @@ interface StackFrame {
   indent: number
   line: number
   lastBodyLine: number
+  depth: number // nesting depth captured at push time, used for stable coloring
 }
 
 function getColors(): string[] {
@@ -31,8 +32,9 @@ function makeCloseDecoType(color: string) {
       contentText: "}",
       color,
       fontWeight: "bold",
-      // forces the } onto its own line below the last body line
-      textDecoration: "none; display: block; margin-top: 0.1em;",
+      // forces the } onto its own line below the last body line;
+      // left-margin (indentation) is set per-instance via renderOptions
+      textDecoration: "none; display: block;",
     },
   })
 }
@@ -102,12 +104,17 @@ function updateDecorations(editor: vscode.TextEditor) {
       indent <= stack[stack.length - 1].indent
     ) {
       const frame = stack.pop()!
-      const depth = stack.length
-      const colorIdx = depth % n
+      const colorIdx = frame.depth % n
       const closeLine = doc.lineAt(frame.lastBodyLine)
       const pos = closeLine.range.end
       closeBuckets[colorIdx].push({
         range: new vscode.Range(pos, pos),
+        renderOptions: {
+          after: {
+            // align the '}' under its matching 'if' by indenting with ch units
+            margin: `0.1em 0 0 ${frame.indent}ch`,
+          },
+        },
       })
     }
 
@@ -136,18 +143,24 @@ function updateDecorations(editor: vscode.TextEditor) {
         range: new vscode.Range(bracePos, bracePos),
       })
 
-      stack.push({ indent, line: i, lastBodyLine: i })
+      stack.push({ indent, line: i, lastBodyLine: i, depth })
     }
   }
 
   // close anything still open at EOF
   while (stack.length > 0) {
     const frame = stack.pop()!
-    const depth = stack.length
-    const colorIdx = depth % n
+    const colorIdx = frame.depth % n
     const closeLine = doc.lineAt(frame.lastBodyLine)
     const pos = closeLine.range.end
-    closeBuckets[colorIdx].push({ range: new vscode.Range(pos, pos) })
+    closeBuckets[colorIdx].push({
+      range: new vscode.Range(pos, pos),
+      renderOptions: {
+        after: {
+          margin: `0.1em 0 0 ${frame.indent}ch`,
+        },
+      },
+    })
   }
 
   openTypes.forEach((type, idx) =>
