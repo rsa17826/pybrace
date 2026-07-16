@@ -118,9 +118,12 @@ function updateDecorations(editor: vscode.TextEditor) {
       })
     }
 
-    // this line belongs to whatever frame is currently on top of the stack
-    if (stack.length > 0) {
-      stack[stack.length - 1].lastBodyLine = i
+    // this line is nested inside every currently open frame (not just the
+    // innermost one), so all of them need their lastBodyLine bumped —
+    // otherwise an outer block's '}' gets stuck at wherever it was last on
+    // top of the stack, instead of tracking the true last line of its body
+    for (const frame of stack) {
+      frame.lastBodyLine = i
     }
 
     const codePart = stripTrailingComment(trimmed)
