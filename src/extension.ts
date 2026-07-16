@@ -241,6 +241,9 @@ function providePythonFormattingEdits(
   const lineCount = document.lineCount
   const stack: { indent: number; lastBodyLine: number }[] = []
 
+  // Track which lines we've already inserted a newline at to prevent duplicates
+  const linesWithInsertedNewlines = new Set<number>()
+
   for (let i = 0; i < lineCount; i++) {
     const line = document.lineAt(i)
     const text = line.text
@@ -261,11 +264,8 @@ function providePythonFormattingEdits(
       if (targetLineNum < lineCount) {
         const nextLine = document.lineAt(targetLineNum)
         const nextLineTrimmed = nextLine.text.trim()
-
-        // If the next line contains code (is not blank) and isn't an 'else'/'elif' inline continuation,
-        // we insert a beautifully-aligned empty line to host the virtual closing brace
+        // Do not add newlines if the next block is an immediate keyword continuation
         if (
-          nextLineTrimmed.length > 0 &&
           nextLineTrimmed !== "else:" &&
           !nextLineTrimmed.startsWith("elif ")
         ) {
@@ -296,24 +296,20 @@ function providePythonFormattingEdits(
 
     if (targetLineNum < lineCount) {
       const nextLine = document.lineAt(targetLineNum)
-      if (nextLine.text.trim().length > 0) {
-        const indentSpaces = " ".repeat(frame.indent)
-        edits.push(
-          vscode.TextEdit.insert(
-            new vscode.Position(targetLineNum, 0),
-            `${indentSpaces}\n`,
-          ),
-        )
-      }
+      edits.push(
+        vscode.TextEdit.insert(
+          new vscode.Position(targetLineNum, 0),
+          `\n`,
+        ),
+      )
     } else {
       const lastLine = document.lineAt(lineCount - 1)
-      if (lastLine.text.trim().length > 0) {
-        edits.push(
-          vscode.TextEdit.insert(
-            new vscode.Position(lineCount, 0),
-            `\n`,
-          ),
-        )
+      if (
+        lastLine.text.trim().length > 0 &&
+        !linesWithInsertedNewlines.has(lineCount)
+      ) {
+        linesWithInsertedNewlines.add(lineCount)
+        edits.push(vscode.TextEdit.insert(lastLine.range.end, `\n`))
       }
     }
   }
