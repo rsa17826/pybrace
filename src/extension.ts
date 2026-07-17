@@ -258,7 +258,6 @@ function providePythonFormattingEdits(
       stack.length > 0 &&
       indent <= stack[stack.length - 1].indent
     ) {
-      // Detect when blocks close (dedenting)
       const closedFrames = []
       while (
         stack.length > 0 &&
@@ -307,18 +306,28 @@ function providePythonFormattingEdits(
 
   // Handle remaining blocks open at the end of the file
   while (stack.length > 0) {
-    const frame = stack.pop()!
-    const targetLineNum = frame.lastBodyLine + 1
+    const eofFrames = []
+    while (stack.length > 0) {
+      eofFrames.push(stack.pop()!)
+    }
 
-    if (targetLineNum < lineCount) {
-      if (!linesWithInsertedNewlines.has(targetLineNum)) {
-        edits.push(
-          vscode.TextEdit.insert(
-            new vscode.Position(targetLineNum, 0),
-            `\n`,
-          ),
-        )
-        linesWithInsertedNewlines.add(targetLineNum)
+    if (eofFrames.length > 0) {
+      const lastBodyLine = eofFrames[0].lastBodyLine
+      const existingGap = lineCount - lastBodyLine - 1
+      const neededGap = eofFrames.length
+
+      if (existingGap < neededGap) {
+        const missingLines = neededGap - existingGap
+        const newlinesStr = "\n".repeat(missingLines)
+
+        if (lastBodyLine + 1 < lineCount) {
+          edits.push(
+            vscode.TextEdit.insert(
+              new vscode.Position(lastBodyLine + 1, 0),
+              newlinesStr,
+            ),
+          )
+        }
       }
     }
   }
