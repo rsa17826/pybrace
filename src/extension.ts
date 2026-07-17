@@ -251,23 +251,19 @@ function providePythonFormattingEdits(
     const indent = text.length - text.trimStart().length
 
     // Detect when blocks close (dedenting)
-    let lineUseCount = 0
-    let lastUsedLine = 0
+    let popCount = 0
+    let lastBodyLine = -1
     while (
       stack.length > 0 &&
       indent <= stack[stack.length - 1].indent
     ) {
       const frame = stack.pop()!
-      let targetLineNum = frame.lastBodyLine + 1
+      popCount++
+      lastBodyLine = frame.lastBodyLine
+    }
 
-      // Shift consecutive closures to consecutive lines
-      if (targetLineNum === lastUsedLine) {
-        targetLineNum += ++lineUseCount
-      } else {
-        lineUseCount = 0
-      }
-      lastUsedLine = frame.lastBodyLine + 1
-
+    if (popCount > 0 && lastBodyLine !== -1) {
+      const targetLineNum = lastBodyLine + 1
       if (targetLineNum < lineCount) {
         const nextLine = document.lineAt(targetLineNum)
         const nextLineTrimmed = nextLine.text.trim()
@@ -277,12 +273,21 @@ function providePythonFormattingEdits(
           nextLineTrimmed !== "else:" &&
           !nextLineTrimmed.startsWith("elif ")
         ) {
-          // Only insert if the line isn't already empty
-          if (nextLineTrimmed.length > 0) {
+          // Precalculate how many empty lines already exist in the gap
+          let existingEmptyLines = 0
+          for (let j = lastBodyLine + 1; j < i; j++) {
+            if (document.lineAt(j).text.trim().length === 0) {
+              existingEmptyLines++
+            }
+          }
+
+          // Insert only the missing difference to reach exactly popCount blank lines
+          const neededNewlines = popCount - existingEmptyLines
+          if (neededNewlines > 0) {
             edits.push(
               vscode.TextEdit.insert(
                 new vscode.Position(targetLineNum, 0),
-                `\n`,
+                "\n".repeat(neededNewlines),
               ),
             )
           }
@@ -301,28 +306,31 @@ function providePythonFormattingEdits(
   }
 
   // Handle remaining blocks open at the end of the file
-  let lineUseCount = 0
-  let lastUsedLine = 0
+  let popCount = 0
+  let lastBodyLine = -1
   while (stack.length > 0) {
     const frame = stack.pop()!
-    let targetLineNum = frame.lastBodyLine + 1
+    popCount++
+    lastBodyLine = frame.lastBodyLine
+  }
 
-    // Shift consecutive closures to consecutive lines
-    if (targetLineNum === lastUsedLine) {
-      targetLineNum += ++lineUseCount
-    } else {
-      lineUseCount = 0
-    }
-    lastUsedLine = frame.lastBodyLine + 1
-
+  if (popCount > 0 && lastBodyLine !== -1) {
+    const targetLineNum = lastBodyLine + 1
     if (targetLineNum < lineCount) {
-      const nextLine = document.lineAt(targetLineNum)
-      // Only insert if the line isn't already empty
-      if (nextLine.text.trim().length > 0) {
+      // Precalculate how many empty lines already exist to the end of the file
+      let existingEmptyLines = 0
+      for (let j = lastBodyLine + 1; j < lineCount; j++) {
+        if (document.lineAt(j).text.trim().length === 0) {
+          existingEmptyLines++
+        }
+      }
+
+      const neededNewlines = popCount - existingEmptyLines
+      if (neededNewlines > 0) {
         edits.push(
           vscode.TextEdit.insert(
             new vscode.Position(targetLineNum, 0),
-            `\n`,
+            "\n".repeat(neededNewlines),
           ),
         )
       }
