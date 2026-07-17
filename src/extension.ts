@@ -302,15 +302,6 @@ function providePythonFormattingEdits(
           `\n`,
         ),
       )
-    } else {
-      const lastLine = document.lineAt(lineCount - 1)
-      if (
-        lastLine.text.trim().length > 0 &&
-        !linesWithInsertedNewlines.has(lineCount)
-      ) {
-        linesWithInsertedNewlines.add(lineCount)
-        edits.push(vscode.TextEdit.insert(lastLine.range.end, `\n`))
-      }
     }
   }
 
