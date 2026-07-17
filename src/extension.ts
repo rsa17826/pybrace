@@ -258,27 +258,39 @@ function providePythonFormattingEdits(
       stack.length > 0 &&
       indent <= stack[stack.length - 1].indent
     ) {
-      const frame = stack.pop()!
-      const targetLineNum = frame.lastBodyLine + 1
+      // Detect when blocks close (dedenting)
+      const closedFrames = []
+      while (
+        stack.length > 0 &&
+        indent <= stack[stack.length - 1].indent
+      ) {
+        closedFrames.push(stack.pop()!)
+      }
 
-      if (targetLineNum < lineCount) {
-        const nextLine = document.lineAt(targetLineNum)
-        const nextLineTrimmed = nextLine.text.trim()
-        // Do not add newlines if the next block is an immediate keyword continuation
-        if (
-          nextLineTrimmed !== "else:" &&
-          !nextLineTrimmed.startsWith("elif ")
-        ) {
-          if (!linesWithInsertedNewlines.has(targetLineNum)) {
-            edits.push(
-              vscode.TextEdit.insert(
-                new vscode.Position(targetLineNum, 0),
-                `\n`,
-              ),
-            )
-            // FIX: Mark this line as processed
-            linesWithInsertedNewlines.add(targetLineNum)
-          }
+      if (closedFrames.length > 0) {
+        const lastBodyLine = closedFrames[0].lastBodyLine
+        // Calculate how many empty lines ALREADY exist in the document here
+        const existingGap = i - lastBodyLine - 1
+
+        // We need one empty line per closed block
+        let neededGap = closedFrames.length
+
+        // If the current line is an immediate continuation (e.g. else:),
+        // it absorbs one of the fake braces, so we need one less empty line.
+        if (trimmed === "else:" || trimmed.startsWith("elif ")) {
+          neededGap -= 1
+        }
+
+        // Only insert the EXACT number of missing newlines
+        if (existingGap < neededGap) {
+          const missingLines = neededGap - existingGap
+          const newlinesStr = "\n".repeat(missingLines)
+          edits.push(
+            vscode.TextEdit.insert(
+              new vscode.Position(lastBodyLine + 1, 0),
+              newlinesStr,
+            ),
+          )
         }
       }
     }
