@@ -241,9 +241,6 @@ function providePythonFormattingEdits(
   const lineCount = document.lineCount
   const stack: { indent: number; lastBodyLine: number }[] = []
 
-  // Track which lines we've already inserted a newline at to prevent duplicates
-  const linesWithInsertedNewlines = new Set<number>()
-
   for (let i = 0; i < lineCount; i++) {
     const line = document.lineAt(i)
     const text = line.text
@@ -254,42 +251,41 @@ function providePythonFormattingEdits(
     const indent = text.length - text.trimStart().length
 
     // Detect when blocks close (dedenting)
+    let lineUseCount = 0
+    let lastUsedLine = 0
     while (
       stack.length > 0 &&
       indent <= stack[stack.length - 1].indent
     ) {
-      const closedFrames = []
-      while (
-        stack.length > 0 &&
-        indent <= stack[stack.length - 1].indent
-      ) {
-        closedFrames.push(stack.pop()!)
+      const frame = stack.pop()!
+      let targetLineNum = frame.lastBodyLine + 1
+
+      // Shift consecutive closures to consecutive lines
+      if (targetLineNum === lastUsedLine) {
+        targetLineNum += ++lineUseCount
+      } else {
+        lineUseCount = 0
       }
+      lastUsedLine = frame.lastBodyLine + 1
 
-      if (closedFrames.length > 0) {
-        const lastBodyLine = closedFrames[0].lastBodyLine
-        // Calculate how many empty lines ALREADY exist in the document here
-        const existingGap = i - lastBodyLine - 1
+      if (targetLineNum < lineCount) {
+        const nextLine = document.lineAt(targetLineNum)
+        const nextLineTrimmed = nextLine.text.trim()
 
-        // We need one empty line per closed block
-        let neededGap = closedFrames.length
-
-        // If the current line is an immediate continuation (e.g. else:),
-        // it absorbs one of the fake braces, so we need one less empty line.
-        if (trimmed === "else:" || trimmed.startsWith("elif ")) {
-          neededGap -= 1
-        }
-
-        // Only insert the EXACT number of missing newlines
-        if (existingGap < neededGap) {
-          const missingLines = neededGap - existingGap
-          const newlinesStr = "\n".repeat(missingLines)
-          edits.push(
-            vscode.TextEdit.insert(
-              new vscode.Position(lastBodyLine + 1, 0),
-              newlinesStr,
-            ),
-          )
+        // Do not add newlines if the next block is an immediate keyword continuation
+        if (
+          nextLineTrimmed !== "else:" &&
+          !nextLineTrimmed.startsWith("elif ")
+        ) {
+          // Only insert if the line isn't already empty
+          if (nextLineTrimmed.length > 0) {
+            edits.push(
+              vscode.TextEdit.insert(
+                new vscode.Position(targetLineNum, 0),
+                `\n`,
+              ),
+            )
+          }
         }
       }
     }
@@ -305,29 +301,30 @@ function providePythonFormattingEdits(
   }
 
   // Handle remaining blocks open at the end of the file
+  let lineUseCount = 0
+  let lastUsedLine = 0
   while (stack.length > 0) {
-    const eofFrames = []
-    while (stack.length > 0) {
-      eofFrames.push(stack.pop()!)
+    const frame = stack.pop()!
+    let targetLineNum = frame.lastBodyLine + 1
+
+    // Shift consecutive closures to consecutive lines
+    if (targetLineNum === lastUsedLine) {
+      targetLineNum += ++lineUseCount
+    } else {
+      lineUseCount = 0
     }
+    lastUsedLine = frame.lastBodyLine + 1
 
-    if (eofFrames.length > 0) {
-      const lastBodyLine = eofFrames[0].lastBodyLine
-      const existingGap = lineCount - lastBodyLine - 1
-      const neededGap = eofFrames.length
-
-      if (existingGap < neededGap) {
-        const missingLines = neededGap - existingGap
-        const newlinesStr = "\n".repeat(missingLines)
-
-        if (lastBodyLine + 1 < lineCount) {
-          edits.push(
-            vscode.TextEdit.insert(
-              new vscode.Position(lastBodyLine + 1, 0),
-              newlinesStr,
-            ),
-          )
-        }
+    if (targetLineNum < lineCount) {
+      const nextLine = document.lineAt(targetLineNum)
+      // Only insert if the line isn't already empty
+      if (nextLine.text.trim().length > 0) {
+        edits.push(
+          vscode.TextEdit.insert(
+            new vscode.Position(targetLineNum, 0),
+            `\n`,
+          ),
+        )
       }
     }
   }
