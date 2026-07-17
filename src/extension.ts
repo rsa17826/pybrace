@@ -169,8 +169,8 @@ function updateDecorations(editor: vscode.TextEditor) {
   }
 
   // close anything still open at EOF
-  lineUseCount = 0
-  lastUsedLine = 0
+  var lineUseCount = 0
+  var lastUsedLine = 0
   while (stack.length > 0) {
     const frame = stack.pop()!
     const colorIdx = frame.depth % n
