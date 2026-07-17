@@ -194,16 +194,22 @@ function updateDecorations(editor: vscode.TextEditor) {
   }
 }
 
-let timeout: NodeJS.Timeout | undefined
-function scheduleUpdate(editor?: vscode.TextEditor) {
-  if (!editor) return
-  if (timeout) clearTimeout(timeout)
-  timeout = setTimeout(() => updateDecorations(editor), 150)
+function updateAllVisibleEditors() {
+  // Get all unique visible text editors currently open on screen
+  const visibleEditors = vscode.window.visibleTextEditors
+
+  for (const editor of visibleEditors) {
+    if (editor.document.languageId === "python") {
+      updateDecorations(editor)
+    }
+  }
 }
 
 export function activate(context: vscode.ExtensionContext) {
   createDecorationTypes()
-  scheduleUpdate(vscode.window.activeTextEditor)
+
+  // Initial schedule for all currently visible editors
+  updateAllVisibleEditors()
 
   context.subscriptions.push(
     // --- REGISTER THE FORMATTER ---
@@ -219,16 +225,27 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     // ------------------------------
 
-    vscode.window.onDidChangeActiveTextEditor(scheduleUpdate),
+    // Triggered when any editor's visible range changes (scrolling, resizing)
+    vscode.window.onDidChangeTextEditorVisibleRanges(updateAllVisibleEditors),
+
+    // Triggered when changing tabs
+    vscode.window.onDidChangeActiveTextEditor(updateAllVisibleEditors),
+
+    // Triggered when text changes in any open document
     vscode.workspace.onDidChangeTextDocument((e) => {
-      const editor = vscode.window.activeTextEditor
-      if (editor && e.document === editor.document)
-        scheduleUpdate(editor)
+      // Find visible editors displaying this document and update them
+      const editorsToUpdate = vscode.window.visibleTextEditors.filter(
+        (editor) => editor.document === e.document,
+      )
+      if (editorsToUpdate.length > 0) {
+        updateAllVisibleEditors()
+      }
     }),
+
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("rainbowBraces")) {
         createDecorationTypes()
-        scheduleUpdate(vscode.window.activeTextEditor)
+        updateAllVisibleEditors()
       }
     }),
   )
