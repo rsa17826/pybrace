@@ -269,12 +269,16 @@ function providePythonFormattingEdits(
           nextLineTrimmed !== "else:" &&
           !nextLineTrimmed.startsWith("elif ")
         ) {
-          edits.push(
-            vscode.TextEdit.insert(
-              new vscode.Position(targetLineNum, 0),
-              `\n`,
-            ),
-          )
+          if (!linesWithInsertedNewlines.has(targetLineNum)) {
+            edits.push(
+              vscode.TextEdit.insert(
+                new vscode.Position(targetLineNum, 0),
+                `\n`,
+              ),
+            )
+            // FIX: Mark this line as processed
+            linesWithInsertedNewlines.add(targetLineNum)
+          }
         }
       }
     }
