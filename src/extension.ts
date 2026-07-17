@@ -273,15 +273,16 @@ function providePythonFormattingEdits(
           nextLineTrimmed !== "else:" &&
           !nextLineTrimmed.startsWith("elif ")
         ) {
-          // Precalculate how many empty lines already exist in the gap
+          // Count ONLY contiguous empty lines right after lastBodyLine
           let existingEmptyLines = 0
-          for (let j = lastBodyLine + 1; j < i; j++) {
+          for (let j = lastBodyLine + 1; j < lineCount; j++) {
             if (document.lineAt(j).text.trim().length === 0) {
               existingEmptyLines++
+            } else {
+              break // Stop as soon as we hit any code or comments!
             }
           }
 
-          // Insert only the missing difference to reach exactly popCount blank lines
           const neededNewlines = popCount - existingEmptyLines
           if (neededNewlines > 0) {
             edits.push(
@@ -317,11 +318,13 @@ function providePythonFormattingEdits(
   if (popCount > 0 && lastBodyLine !== -1) {
     const targetLineNum = lastBodyLine + 1
     if (targetLineNum < lineCount) {
-      // Precalculate how many empty lines already exist to the end of the file
+      // Count ONLY contiguous empty lines right after lastBodyLine to EOF
       let existingEmptyLines = 0
       for (let j = lastBodyLine + 1; j < lineCount; j++) {
         if (document.lineAt(j).text.trim().length === 0) {
           existingEmptyLines++
+        } else {
+          break // Stop as soon as we hit any code or comments!
         }
       }
 
