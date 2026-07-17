@@ -299,13 +299,15 @@ function providePythonFormattingEdits(
     const targetLineNum = frame.lastBodyLine + 1
 
     if (targetLineNum < lineCount) {
-      const nextLine = document.lineAt(targetLineNum)
-      edits.push(
-        vscode.TextEdit.insert(
-          new vscode.Position(targetLineNum, 0),
-          `\n`,
-        ),
-      )
+      if (!linesWithInsertedNewlines.has(targetLineNum)) {
+        edits.push(
+          vscode.TextEdit.insert(
+            new vscode.Position(targetLineNum, 0),
+            `\n`,
+          ),
+        )
+        linesWithInsertedNewlines.add(targetLineNum)
+      }
     }
   }
 
