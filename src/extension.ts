@@ -169,11 +169,27 @@ function updateDecorations(editor: vscode.TextEditor) {
   }
 
   // close anything still open at EOF
+  // close anything still open at EOF
+  let lineUseCount = 0
+  let lastUsedLine = 0
   while (stack.length > 0) {
     const frame = stack.pop()!
     const colorIdx = frame.depth % n
-    const closeLine = doc.lineAt(frame.lastBodyLine)
+
+    // Calculate the target empty line below the last body line
+    let l = frame.lastBodyLine + 1
+    if (l === lastUsedLine) {
+      l += ++lineUseCount
+    } else {
+      lineUseCount = 0
+    }
+    lastUsedLine = frame.lastBodyLine + 1
+
+    // Make sure we don't accidentally query past the end of the document
+    const targetLineNum = Math.min(l, doc.lineCount - 1)
+    const closeLine = doc.lineAt(targetLineNum)
     const pos = closeLine.range.end
+
     closeBuckets[colorIdx].push({
       range: new vscode.Range(pos, pos),
       renderOptions: {
@@ -226,10 +242,14 @@ export function activate(context: vscode.ExtensionContext) {
     // ------------------------------
 
     // Triggered when any editor's visible range changes (scrolling, resizing)
-    vscode.window.onDidChangeTextEditorVisibleRanges(updateAllVisibleEditors),
+    vscode.window.onDidChangeTextEditorVisibleRanges(
+      updateAllVisibleEditors,
+    ),
 
     // Triggered when changing tabs
-    vscode.window.onDidChangeActiveTextEditor(updateAllVisibleEditors),
+    vscode.window.onDidChangeActiveTextEditor(
+      updateAllVisibleEditors,
+    ),
 
     // Triggered when text changes in any open document
     vscode.workspace.onDidChangeTextDocument((e) => {
