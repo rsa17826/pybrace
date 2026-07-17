@@ -169,7 +169,6 @@ function updateDecorations(editor: vscode.TextEditor) {
   }
 
   // close anything still open at EOF
-  // close anything still open at EOF
   lineUseCount = 0
   lastUsedLine = 0
   while (stack.length > 0) {
