@@ -305,29 +305,28 @@ function providePythonFormattingEdits(
         const nextLineTrimmed = nextLine.text.trim()
 
         // Do not add newlines if the next block is an immediate keyword continuation
+        // Count ONLY contiguous empty lines right after lastBodyLine
+        let existingEmptyLines = 0
+        for (let j = lastBodyLine + 1; j < lineCount; j++) {
+          if (document.lineAt(j).text.trim().length === 0) {
+            existingEmptyLines++
+          } else {
+            break // Stop as soon as we hit any code or comments!
+          }
+        }
         if (
-          nextLineTrimmed !== "else:" &&
-          !nextLineTrimmed.startsWith("elif ")
-        ) {
-          // Count ONLY contiguous empty lines right after lastBodyLine
-          let existingEmptyLines = 0
-          for (let j = lastBodyLine + 1; j < lineCount; j++) {
-            if (document.lineAt(j).text.trim().length === 0) {
-              existingEmptyLines++
-            } else {
-              break // Stop as soon as we hit any code or comments!
-            }
-          }
-
-          const neededNewlines = popCount - existingEmptyLines
-          if (neededNewlines > 0) {
-            edits.push(
-              vscode.TextEdit.insert(
-                new vscode.Position(targetLineNum, 0),
-                "\n".repeat(neededNewlines),
-              ),
-            )
-          }
+          nextLineTrimmed == "else:" ||
+          nextLineTrimmed.startsWith("elif ")
+        )
+          popCount -= 1
+        const neededNewlines = popCount - existingEmptyLines
+        if (neededNewlines > 0) {
+          edits.push(
+            vscode.TextEdit.insert(
+              new vscode.Position(targetLineNum, 0),
+              "\n".repeat(neededNewlines),
+            ),
+          )
         }
       }
     }
