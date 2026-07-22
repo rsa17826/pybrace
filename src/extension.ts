@@ -314,12 +314,13 @@ function providePythonFormattingEdits(
             break // Stop as soon as we hit any code or comments!
           }
         }
+        let pc = popCount
         if (
           nextLineTrimmed == "else:" ||
           nextLineTrimmed.startsWith("elif ")
         )
-          popCount -= 1
-        const neededNewlines = popCount - existingEmptyLines
+          pc -= 1
+        const neededNewlines = pc - existingEmptyLines
         if (neededNewlines > 0) {
           edits.push(
             vscode.TextEdit.insert(
