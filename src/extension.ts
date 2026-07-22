@@ -302,7 +302,7 @@ function providePythonFormattingEdits(
       const targetLineNum = lastBodyLine + 1
       if (targetLineNum < lineCount) {
         const nextLine = document.lineAt(targetLineNum)
-        const nextLineTrimmed = nextLine.text.trim()
+        var nextLineTrimmed = nextLine.text.trim()
 
         // Do not add newlines if the next block is an immediate keyword continuation
         // Count ONLY contiguous empty lines right after lastBodyLine
@@ -311,6 +311,7 @@ function providePythonFormattingEdits(
           if (document.lineAt(j).text.trim().length === 0) {
             existingEmptyLines++
           } else {
+            nextLineTrimmed = document.lineAt(j).text.trim()
             break // Stop as soon as we hit any code or comments!
           }
         }
