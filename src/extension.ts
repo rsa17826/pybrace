@@ -103,13 +103,18 @@ function updateDecorations(editor: vscode.TextEditor) {
     ) {
       const frame = stack.pop()!
       const colorIdx = frame.depth % n
-      var l = frame.lastBodyLine + 1
-      if (l == lastUsedLine) {
+      let l = frame.lastBodyLine + 1
+      if (l === lastUsedLine) {
         l += ++lineUseCount
       } else {
         lineUseCount = 0
       }
       lastUsedLine = frame.lastBodyLine + 1
+      if (l > i) {
+        throw new Error(
+          `close line ${l} past dedent line ${i} (frame at line ${frame.line})`,
+        )
+      }
       const closeLine = doc.lineAt(l)
 
       // --- DYNAMIC SAME-LINE ALIGNMENT ---
@@ -210,12 +215,13 @@ function updateDecorations(editor: vscode.TextEditor) {
 }
 
 function updateAllVisibleEditors() {
-  // Get all unique visible text editors currently open on screen
-  const visibleEditors = vscode.window.visibleTextEditors
-
-  for (const editor of visibleEditors) {
+  for (const editor of vscode.window.visibleTextEditors) {
     if (editor.document.languageId === "python") {
-      updateDecorations(editor)
+      try {
+        updateDecorations(editor)
+      } catch (e) {
+        console.error("pybrace updateDecorations failed", e)
+      }
     }
   }
 }

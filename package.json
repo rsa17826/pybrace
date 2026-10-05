@@ -16,22 +16,20 @@
   "main": "./out/extension.js",
   "publisher": "rssaromeo",
   "contributes": {
-    "contributes": {
-      "configuration": {
-        "title": "Rainbow Braces",
-        "properties": {
-          "rainbowBraces.colors": {
-            "type": "array",
-            "default": [
-              "#e06c75",
-              "#61afef",
-              "#98c379",
-              "#c678dd",
-              "#d19a66",
-              "#56b6c2"
-            ],
-            "description": "Colors cycled by nesting depth"
-          }
+    "configuration": {
+      "title": "Rainbow Braces",
+      "properties": {
+        "rainbowBraces.colors": {
+          "type": "array",
+          "default": [
+            "#e06c75",
+            "#61afef",
+            "#98c379",
+            "#c678dd",
+            "#d19a66",
+            "#56b6c2"
+          ],
+          "description": "Colors cycled by nesting depth"
         }
       }
     }
